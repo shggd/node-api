@@ -7,10 +7,12 @@ const mongoose = require('mongoose');
 const jade = require('jade');
 const jwt = require('express-jwt');
 const app = express();
+require('dotenv').config();
+
 
 //Connect to Database
-mongoose.connect('mongodb://chen:5354@cluster0-shard-00-00-cwrcl.mongodb.net:27017,cluster0-shard-00-01-cwrcl.mongodb.net:27017,cluster0-shard-00-02-cwrcl.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true',{useMongoClient:true})
-  .then(()=>{console.log("working")},
+mongoose.connect(`mongodb://${process.env.DB_USER}:${process.env.DB_PASS}${process.env.DB_HOST}`,{useMongoClient:true})
+  .then(()=>{console.log("DB connected")},
 err=>{console.log(err)});
 
 // Cors
@@ -54,7 +56,5 @@ app.use(function (err, req, res, next) {
 
 
 app.listen(3000, function () {
-  console.log('http://localhost:3000/');
-  console.log(mongoose.connection.readyState);
-  
+  console.log('Server running');  
 })
