@@ -6,12 +6,12 @@ const fs = require('fs');
 const mongoose = require('mongoose');
 const jade = require('jade');
 const jwt = require('express-jwt');
-
 const app = express();
 
 //Connect to Database
-mongoose.connect('mongodb://localhost/myapp');
-
+mongoose.connect('mongodb://chen:5354@cluster0-shard-00-00-cwrcl.mongodb.net:27017,cluster0-shard-00-01-cwrcl.mongodb.net:27017,cluster0-shard-00-02-cwrcl.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true',{useMongoClient:true})
+  .then(()=>{console.log("working")},
+err=>{console.log(err)});
 
 // Cors
 app.use(cors());
@@ -22,33 +22,39 @@ app.use(bodyParser.urlencoded({ extended: false }));
 
 // Serve static files
 app.use(express.static(__dirname + '/public'));
+app.use(express.static(path.join(__dirname, 'dist')));
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
+
 
 // Routes
 const userroute = require('./routes/users');
 const dogeroute = require('./routes/doges');
 const commentroute = require('./routes/comments');
+const productroute = require('./routes/products');
+const cartroute = require('./routes/carts');
 app.use('/user',userroute);
 app.use('/doge',dogeroute);
+app.use('/product',productroute);
 app.use(commentroute);
+app.use('/cart',cartroute);
 
-
-
-app.get('/',function(req,res){
-   const str = "THIS IS COMING FROM START PAGE"
-   res.render('startpage',str);
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist/index.html'));
 });
-
-
-
 
 app.use(function (err, req, res, next) {
   if (err.name === 'UnauthorizedError') {
-    res.status(401).send(err);
+    res.status(401).send({error:'UnauthorizedError'});
+  }
+  if (err.name ==='CastError') {
+    res.status(404).send({error:'ID not found'})
   }
 });
 
+
 app.listen(3000, function () {
-  console.log('http://localhost:3000/')
+  console.log('http://localhost:3000/');
+  console.log(mongoose.connection.readyState);
+  
 })

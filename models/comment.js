@@ -14,7 +14,7 @@ const CommentSchema = new mongoose.Schema({
             type:mongoose.Schema.Types.ObjectId,
             ref: "Doge"
         },
-        title:String
+        name:String
    } ,     
    comment : String,
    date: { type: Date, default: Date.now },

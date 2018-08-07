@@ -5,149 +5,76 @@ const Comments = require('../models/comment')
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
-router.post('/register',function(req,res,next){
-    let NewUser = new User({
-        email: req.body.email,
-        username: req.body.username,
-        password: bcrypt.hashSync(req.body.password,10)
-    });
-
-    User.findOne({email: req.body.email},function(err,found){
-        if(err){ return res.status(500).json({error:err})}
-
-        if(found){ return res.status(500).json({error: 'Email already exist'}) }
-        else{
-            User.findOne({username: req.body.username},function(err,foundUser){
-            if(err){ return res.status(500).json({error:err})}
-            
-            if(foundUser){ return res.status(500).json({error:'User already exist'})}
-            else{
-                NewUser.save(function(err,result){
-                if(err){
-                    return res.status(500).json({
-                        title:'Fail to create new user',
-                        error: 'Error has occur'
-                    });
-                }
-                const token = signToken(result);
-                res.json({
-                    id:result.id,
-                    token: token
-                });
-            });
-            }
-            });
-        }
-    });
+router.param('id',(req,res,next,user)=>{
+    User.findOne({username:user})
+        .then(data=>{
+            if(!data){
+                res.status(404).json("no user exist");
+            }; 
+                req.userinfo= data;
+                return next();
+        }).catch(next);
+        
 });
 
-router.post('/signin',function(req,res,next){
-    User.findOne({username:req.body.username},function(err,user){
-        if(err){
-            return res.json({
-                title:'Error',
-                error: err
-             });
-            }
-         if(!user){
-            return res.status(401).json({
-                success: false,
-                error:'Username or Password Wrong'
+router.post('/register', (req,res)=>{
+    if(!req.body.email||!req.body.username||!req.body.password){
+        return res.status(422).json({error : "Can't be blank"});
+    }
+    Promise.all([
+        User.findOne({username:req.body.username}).exec(),
+        User.findOne({email:req.body.email}).exec()
+        ]).then(result=>{
+            if(result[0]){ return res.status(500).json({error: 'Username already exist'}) }
+            if(result[1]){ return res.status(500).json({error: 'Email already exist'}) }
+            const NewUser = new User({
+                email: req.body.email,
+                username: req.body.username,
+                password: bcrypt.hashSync(req.body.password,10)
             });
-        }
-        else{
-            bcrypt.compare(req.body.password, user.password,function(err,match){
-                if(err){
-                    return res.json({
-                    title:'Error',
-                    error: err
-                    });
-                }
-                if(match == false){
-                    return res.status(401).json({
-                    success: false,
-                    error:'Password Wrong'
-                    });
-                }
-                else{
-                    const token = signToken(user);
-                    res.status(200).json({
-                    sucess:true,
-                    token: token,
-                    user:{
-                        id:user.id,
-                        email:user.email,
-                        username:user.username
-                    }
-                    });
-                }
-            });
-        }
-    });
+            NewUser.save((err,result)=>{
+                res.json({
+                    id:result.id,
+                    token:result.signToken()
+                })
+            })
+        }).catch(err=>res.json({error:err}));   
+});
 
+router.post('/signin',(req,res)=>{
+    if(!req.body.username||!req.body.password){
+        return res.status(422).json({error : "Can't be blank"});
+    }
+    User.findOne({username:req.body.username})
+        .then(user=>{
+            if(!user){ return res.status(401).json({sucess:false, error:'Username or Password Wrong'}) }
+            user.checkPassword(req.body.password,(match)=>{
+                if(!match){ res.status(401).json({sucess:false, error:'Username or Password Wrong'}) }
+                else{
+                    res.status(200).json({
+                        success:true,
+                        token:user.signToken(),
+                        user:user.getUser()
+                    })
+                }
+            })
+        }).catch(err=>res.json(err));
 });
 
 router.post('/checkUsername',function(req,res,next){
-   User.findOne({username:req.body.username},function(err,found){
-        if(err){ 
-            return res.json({
-               title:'Page not found',
-               error:err     
-         })
-        } 
-        if(!found){
-            return res.status(200).json(null);
-        }
-        else{
-            res.status(406).json({'invaild':true});     
-        }    
-
-   });
+    User.findOne({username:req.body.username})
+        .then(found=>{
+            if(!found){
+                return res.status(200).json(null);
+            }
+            res.status(406).json({'invaild':true});    
+        })
 });
 
-
-router.get('/:id',function(req,res,next){
-    let id = req.params.id;
-    User.findOne({username:id},function(err,user){
-        if(err){
-            return res.json({
-               title:'Page not found',
-               error:err     
-            });
-        }
-        if(!user){
-            return res.status(404).json({
-                message:'NOT FOUND'
-            });
-        }
-        else{
-            Comments.find({"author.username":user.username}).populate("comments").exec(function(err,foundcomments){
-                if(err)
-                    {
-                        return res.status(500).json({err});
-                    }
-                else
-                    {
-                        res.json({
-                            userinfo: user,
-                            usercommon: foundcomments
-                        })
-
-                    }
-
-            });
-
-        }
-
-    });
-
-});
-
-
-function signToken(user){
-    const token = jwt.sign({user:user},'secret',{ algorithm: 'HS256' },{expiresIn:'10h'});
-    return token;
-}
-
+router.get('/:id',(req,res,next)=>{
+    Comments.find({"author._id":req.userinfo._id})
+        .then(comment=>res.json(comment))
+        .catch(err=>res.json(err));
+})
 
 module.exports = router;
